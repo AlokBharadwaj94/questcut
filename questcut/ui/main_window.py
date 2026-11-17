@@ -1565,8 +1565,8 @@ class MainWindow(QMainWindow):
         c.media_id = mid
         c.props.update({"portrait_x": 0.5, "portrait_y": 0.4, "portrait_size": 0.35})
         self.refresh_all()
-        self.status("Picture taken from this frame. Drag the yellow 'face' dot onto the person; "
-                    "use the zoom setting to frame them.", 15000)
+        self.status("Picture taken from this frame. Drag the yellow dot onto the person (watch the picture "
+                    "update) and use the zoom setting to frame them.", 15000)
 
     def add_picture_file(self, path):
         """Imports one picture now (not in the background) and returns its media id."""
