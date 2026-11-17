@@ -1,9 +1,11 @@
 name: tests
 
+# Runs only when started by hand: Actions tab -> tests -> "Run workflow".
+# To run on every push again, add these two lines under "on:":
+#   push:
+#   pull_request:
 on:
-  push:
-  pull_request:
-  workflow_dispatch:      # adds a "Run workflow" button on GitHub
+  workflow_dispatch:
 
 jobs:
   test:
