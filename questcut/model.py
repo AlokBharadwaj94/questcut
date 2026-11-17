@@ -24,6 +24,7 @@ def new_id(prefix: str = "") -> str:
 
 # ---------------------------------------------------------------- keyframes
 EASINGS = ["smooth", "linear", "hold"]
+PICTURE_PROPS = ("media2", "shadow_media")      # props that hold a media id
 
 
 def _ease(p: float, mode: str) -> float:
@@ -124,6 +125,10 @@ class Clip:
                 return
         keys.append([t_rel, val, easing])
         keys.sort(key=lambda k: k[0])
+
+    def picture_refs(self):
+        """Media ids of extra pictures kept in props (e.g. the 'after' picture of an evolution)."""
+        return {k: v for k, v in self.props.items() if k in PICTURE_PROPS and v}
 
     def remove_keyframe(self, key: str, t_rel: float) -> bool:
         keys = self.keyframes.get(key, [])
@@ -431,6 +436,8 @@ def append_project(dst: Project, src: Project, offset: float) -> dict:
                 nc.start = round(c.start + offset, 4)
                 if nc.media_id:
                     nc.media_id = media_map.get(nc.media_id, nc.media_id)
+                for k, v in nc.picture_refs().items():
+                    nc.props[k] = media_map.get(v, v)
                 dt.clips.append(nc)
                 n_clips += 1
             dt.sort()

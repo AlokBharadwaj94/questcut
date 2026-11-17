@@ -9,7 +9,7 @@ import wave
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QPlainTextEdit, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
+from PySide6.QtWidgets import (QWidget, QPlainTextEdit, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
                                QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView)
 
@@ -605,6 +605,134 @@ class FightDialog(QDialog):
                 "enemy_hp": self.enemy_hp.value(), "player_max": self.player_max.value(),
                 "enemy_max": self.enemy_max.value(), "speed": self.speed.value(), "icon": self.icon.currentText(),
                 "xp": self.xp.isChecked(), "music": self.music.isChecked()}
+
+
+
+class PicturePicker(QWidget):
+    """'Use the video frame at the playhead' or 'a picture file'."""
+
+    def __init__(self, parent, allow_later=False):
+        super().__init__(parent)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        self.mode = QComboBox()
+        self.mode.addItem("Video frame at the red playhead", "frame")
+        self.mode.addItem("A picture file…", "file")
+        if allow_later:
+            self.mode.addItem("Choose later", "later")
+        self.path = ""
+        self.label = QLabel("")
+        self.label.setStyleSheet("color:#9aa0aa;")
+        self.mode.activated.connect(self._pick)
+        h.addWidget(self.mode)
+        h.addWidget(self.label, 1)
+
+    def _pick(self, _i=None):
+        if self.mode.currentData() != "file":
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a picture", "",
+                                              "Pictures (*.png *.jpg *.jpeg *.webp *.bmp *.PNG *.JPG *.JPEG)")
+        if path:
+            self.path = path
+            self.label.setText(os.path.basename(path))
+        else:
+            self.mode.setCurrentIndex(0)
+
+    def value(self):
+        m = self.mode.currentData()
+        if m == "file" and not self.path:
+            m = "frame"
+        return {"mode": m, "path": self.path}
+
+
+class WhosDialog(QDialog):
+    """'Who's that …?' guessing sequence."""
+
+    def __init__(self, mw):
+        super().__init__(mw)
+        self.setWindowTitle("Who's that …? (Pokémon style)")
+        self.setMinimumWidth(520)
+        v = QVBoxLayout(self)
+        lab = QLabel("Places at the playhead: blue rays, the person as a black silhouette with your question and a "
+                     "sting, then a flash and the real picture with the answer and a fanfare. Any picture works: the "
+                     "person is cut out of the background automatically.")
+        lab.setWordWrap(True)
+        v.addWidget(lab)
+        f = QFormLayout()
+        v.addLayout(f)
+        self.pic = PicturePicker(self)
+        self.name = QLineEdit("PROFESSOR GRID")
+        self.question = QLineEdit("Who's that NPC?")
+        self.answer = QLineEdit("It's {name}!")
+        self.reveal = _spin(0.5, 60, 4.0, 0.5, " s", 1)
+        self.after = _spin(1, 60, 4.0, 0.5, " s", 1)
+        self.bg = QCheckBox("Blue rays background (untick to keep the video behind)")
+        self.bg.setChecked(True)
+        f.addRow("Picture", self.pic)
+        f.addRow("Name", self.name)
+        f.addRow("Question", self.question)
+        f.addRow("Answer", self.answer)
+        f.addRow("Silhouette shown for", self.reveal)
+        f.addRow("Answer shown for", self.after)
+        f.addRow("", self.bg)
+        tip = QLabel("Tip: for 'Video frame', first move the red playhead to a moment where the person is clearly "
+                     "visible against a plain background. Then drag the yellow 'face' dot onto them and use "
+                     "'Picture zoom' in the right panel.")
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#9aa0aa;")
+        v.addWidget(tip)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+
+    def values(self):
+        return {"pic": self.pic.value(), "name": self.name.text(), "question": self.question.text(),
+                "answer": self.answer.text(), "reveal": self.reveal.value(), "after": self.after.value(),
+                "rays": self.bg.isChecked()}
+
+
+class EvolveDialog(QDialog):
+    """Evolution sequence."""
+
+    def __init__(self, mw):
+        super().__init__(mw)
+        self.setWindowTitle("Evolution (Pokémon style)")
+        self.setMinimumWidth(520)
+        v = QVBoxLayout(self)
+        lab = QLabel("Places at the playhead: 'What? … is evolving!', the person glowing white and flickering "
+                     "between the before and after pictures faster and faster, a flash, the new form and "
+                     "'Congratulations!'. Or it stops at the last moment.")
+        lab.setWordWrap(True)
+        v.addWidget(lab)
+        f = QFormLayout()
+        v.addLayout(f)
+        self.name_a = QLineEdit("PHD STUDENT")
+        self.pic_a = PicturePicker(self)
+        self.name_b = QLineEdit("DOCTOR")
+        self.pic_b = PicturePicker(self, allow_later=True)
+        self.pic_b.mode.setCurrentIndex(2)
+        self.result = QComboBox()
+        self.result.addItem("Evolves", "evolves")
+        self.result.addItem("Stops at the last moment (someone pressed B!)", "stops")
+        f.addRow("Before: name", self.name_a)
+        f.addRow("Before: picture", self.pic_a)
+        f.addRow("After: name", self.name_b)
+        f.addRow("After: picture", self.pic_b)
+        f.addRow("Ending", self.result)
+        tip = QLabel("Fun idea: 'before' = a photo from the first year, 'after' = in the graduation gown. "
+                     "You can change either picture later in the right panel.")
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#9aa0aa;")
+        v.addWidget(tip)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+
+    def values(self):
+        return {"name_a": self.name_a.text(), "pic_a": self.pic_a.value(), "name_b": self.name_b.text(),
+                "pic_b": self.pic_b.value(), "result": self.result.currentData()}
 
 
 class CaptureDialog(QDialog):

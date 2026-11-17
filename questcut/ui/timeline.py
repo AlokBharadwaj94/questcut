@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import zlib
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
@@ -35,6 +36,8 @@ class Timeline(QWidget):
         self.current_track = None
         self._drag = None
         self._peaks: dict = {}
+        self.mark_in = None      # start of the marked stretch of time (I)
+        self.mark_out = None     # end of it (O)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -112,6 +115,26 @@ class Timeline(QWidget):
         if emit:
             self.playheadMoved.emit(self.playhead)
 
+    def marked_range(self):
+        if self.mark_in is None or self.mark_out is None:
+            return None
+        a, b = sorted((self.mark_in, self.mark_out))
+        return (a, b) if b - a > 0.005 else None
+
+    def _with_groups(self, ids):
+        """Selecting one piece of a group selects the whole group."""
+        out = list(ids)
+        seen = set(out)
+        for cid in list(ids):
+            c = self.project.clip(cid)
+            g = c.props.get("group") if c is not None else None
+            if g:
+                for o in self.project.all_clips():
+                    if o.props.get("group") == g and o.id not in seen:
+                        out.append(o.id)
+                        seen.add(o.id)
+        return out
+
     # ------------------------------------------------------------ waveform peaks
     def peaks(self, media_id):
         if media_id in self._peaks:
@@ -166,6 +189,21 @@ class Timeline(QWidget):
                     continue
                 self._paint_clip(p, tr, c, y, h, c.id in sel_ids, small, bold)
             p.restore()
+        # marked stretch of time (I ... O)
+        rng = self.marked_range()
+        if rng is not None:
+            xa, xb = max(HEADER_W, self.x_of(rng[0])), self.x_of(rng[1])
+            if xb > HEADER_W:
+                p.fillRect(QRectF(xa, RULER_H, xb - xa, H - RULER_H), QColor(90, 170, 255, 40))
+                p.setPen(QPen(QColor("#5aaaff"), 1, Qt.PenStyle.DashLine))
+                p.drawLine(QPointF(xa, RULER_H), QPointF(xa, H))
+                p.drawLine(QPointF(xb, RULER_H), QPointF(xb, H))
+        # selection box
+        if self._drag and self._drag.get("mode") == "box" and self._drag.get("started"):
+            r = self._drag["rect"]
+            p.setPen(QPen(QColor("#ffd54a"), 1, Qt.PenStyle.DashLine))
+            p.setBrush(QColor(255, 213, 74, 35))
+            p.drawRect(r)
         # headers
         for tr, y, h in rows:
             if y + h < RULER_H or y > H:
@@ -189,6 +227,20 @@ class Timeline(QWidget):
                     xs = self.x_of(t + sub * k)
                     p.drawLine(QPointF(xs, RULER_H - 4), QPointF(xs, RULER_H))
             t += step
+        if rng is not None:
+            xa, xb = self.x_of(rng[0]), self.x_of(rng[1])
+            p.fillRect(QRectF(max(HEADER_W, xa), RULER_H - 8, max(0.0, xb - max(HEADER_W, xa)), 8),
+                       QColor("#5aaaff"))
+            p.setPen(QColor("#9fd0ff"))
+            p.setFont(small)
+            if xb > HEADER_W:
+                p.drawText(QPointF(max(HEADER_W, xa) + 3, 11), f"marked {rng[1] - rng[0]:.2f} s")
+        elif self.mark_in is not None or self.mark_out is not None:
+            m = self.mark_in if self.mark_in is not None else self.mark_out
+            x = self.x_of(m)
+            if x >= HEADER_W:
+                p.setPen(QPen(QColor("#5aaaff"), 2))
+                p.drawLine(QPointF(x, 0), QPointF(x, RULER_H))
         p.setPen(QColor("#bbb"))
         p.setFont(bold)
         p.drawText(QRectF(10, 0, HEADER_W - 10, RULER_H), Qt.AlignmentFlag.AlignVCenter, "TRACKS")
@@ -345,6 +397,17 @@ class Timeline(QWidget):
                 kx = r.left() + kt * self.pps
                 p.drawPolygon(QPolygonF([QPointF(kx, ky - 5), QPointF(kx + 5, ky), QPointF(kx, ky + 5),
                                          QPointF(kx - 5, ky)]))
+        gid = c.props.get("group")
+        if gid:
+            gcol = QColor.fromHsv(zlib.crc32(gid.encode()) % 360, 160, 255)
+            p.save()
+            p.setClipPath(path)
+            p.fillRect(QRectF(r.left(), r.bottom() - 4, r.width(), 4), gcol)
+            p.restore()
+            if r.width() > 26:
+                p.setPen(gcol)
+                p.setFont(small)
+                p.drawText(QRectF(r.right() - 20, r.top() + 1, 18, 14), Qt.AlignmentFlag.AlignCenter, "⛓")
         if selected:
             p.setPen(QPen(QColor("#ffd54a"), 2))
             p.setBrush(Qt.BrushStyle.NoBrush)
@@ -384,6 +447,12 @@ class Timeline(QWidget):
         self.setFocus()
         pos = ev.position()
         if pos.y() < RULER_H and pos.x() > HEADER_W:
+            if ev.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                t0 = max(0.0, self.t_of(pos.x()))
+                self.mark_in, self.mark_out = t0, t0
+                self._drag = {"mode": "mark"}
+                self.update()
+                return
             self._drag = {"mode": "scrub"}
             self.set_playhead(self.t_of(pos.x()))
             return
@@ -420,22 +489,23 @@ class Timeline(QWidget):
             self._context_menu(ev.globalPosition().toPoint(), tr, c, self.t_of(pos.x()))
             return
         if c is None:
-            if not (ev.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)):
-                self.selected = []
-                self.selectionChanged.emit()
-            self._drag = {"mode": "scrub"}
-            self.set_playhead(self.t_of(pos.x()))
-            if tr is not None:
-                self.trackSelected.emit(tr.id)
+            add = bool(ev.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier))
+            # click = move the playhead (on release); drag = draw a box to select pieces
+            self._drag = {"mode": "box", "x0": pos.x(), "y0": pos.y(), "started": False, "add": add,
+                          "base": list(self.selected) if add else [], "rect": QRectF(pos, pos), "track": tr}
             return
         mods = ev.modifiers()
+        single = bool(mods & Qt.KeyboardModifier.AltModifier)      # Alt: just this piece, even in a group
+        one = [c.id] if single else self._with_groups([c.id])
         if mods & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
             if c.id in self.selected:
-                self.selected.remove(c.id)
+                self.selected = [i for i in self.selected if i not in one]
             else:
-                self.selected.append(c.id)
-        elif c.id not in self.selected:
-            self.selected = [c.id]
+                self.selected += [i for i in one if i not in self.selected]
+        elif c.id not in self.selected or single:
+            self.selected = one
+        else:   # clicked piece goes first so the right panel shows it
+            self.selected = [c.id] + [i for i in self.selected if i != c.id]
         self.selectionChanged.emit()
         if tr.locked:
             self.update()
@@ -489,6 +559,28 @@ class Timeline(QWidget):
             return
         if d["mode"] == "scrub":
             self.set_playhead(self.t_of(pos.x()))
+            return
+        if d["mode"] == "mark":
+            self.mark_out = max(0.0, self.t_of(pos.x()))
+            self.update()
+            return
+        if d["mode"] == "box":
+            if not d["started"] and abs(pos.x() - d["x0"]) + abs(pos.y() - d["y0"]) < 6:
+                return
+            d["started"] = True
+            r = QRectF(QPointF(min(d["x0"], pos.x()), min(d["y0"], pos.y())),
+                       QPointF(max(d["x0"], pos.x()), max(d["y0"], pos.y())))
+            d["rect"] = r
+            hit = []
+            for tr, y, h in self.rows():
+                for cc in tr.clips:
+                    if self.clip_rect(cc, y, h).intersects(r):
+                        hit.append(cc.id)
+            ids = list(d["base"]) + [i for i in self._with_groups(hit) if i not in d["base"]]
+            if ids != self.selected:
+                self.selected = ids
+                self.selectionChanged.emit()
+            self.update()
             return
         dx = pos.x() - d["x0"]
         if not d["started"]:
@@ -574,6 +666,27 @@ class Timeline(QWidget):
     def mouseReleaseEvent(self, ev):
         d = self._drag
         self._drag = None
+        if d and d.get("mode") == "box" and not d.get("started"):
+            if not d["add"] and self.selected:
+                self.selected = []
+                self.selectionChanged.emit()
+            self.set_playhead(self.t_of(d["x0"]))
+            if d.get("track") is not None:
+                self.trackSelected.emit(d["track"].id)
+            self.update()
+            return
+        if d and d.get("mode") == "box":
+            n = len(self.selected)
+            self.mw.status(f"{n} piece(s) selected. Drag one to move them all; Del deletes them; G groups them.")
+            self.update()
+            return
+        if d and d.get("mode") == "mark":
+            rng = self.marked_range()
+            if rng:
+                self.mw.status(f"Marked {rng[1] - rng[0]:.2f} s. Ctrl+Shift+Delete removes this time from every "
+                               "track and closes it up.", 12000)
+            self.update()
+            return
         if d and d.get("started"):
             for tr in self.project.tracks:
                 tr.sort()
@@ -669,6 +782,16 @@ class Timeline(QWidget):
                 for tt in TRANSITIONS:
                     tin.addAction(TRANSITION_LABELS[tt], lambda x=tt: mw.set_transition("in", x))
                     tout.addAction(TRANSITION_LABELS[tt], lambda x=tt: mw.set_transition("out", x))
+        m.addSeparator()
+        rng = self.marked_range()
+        if rng:
+            m.addAction(f"Remove the marked {rng[1] - rng[0]:.2f} s from every track  (Ctrl+Shift+Del)",
+                        mw.remove_marked_time)
+        m.addAction("Insert empty time at the playhead…  (Ctrl+Shift+T)", mw.insert_time_dialog)
+        if len(self.selected) > 1:
+            m.addAction("Group the selected pieces  (G)", mw.group_selected)
+        if any((self.project.clip(i) or c).props.get("group") for i in self.selected if self.project.clip(i)):
+            m.addAction("Ungroup  (Shift+G)", mw.ungroup_selected)
         m.addSeparator()
         if mw.clipboard:
             m.addAction("Paste at playhead  (Ctrl+V)", mw.paste)

@@ -525,6 +525,62 @@ def sfx_tube_wobble():
     return _norm(_pad(knock + tone, 0.1), 0.55)
 
 
+def sfx_whos_question():
+    """Quick rising 'guess!' sting."""
+    lead = notes([midi(n) for n in (67, 71, 74, 79, 0, 79)], "square", 0.085, 0.25, 0.2)
+    bass = notes([midi(n) for n in (43, 0, 50, 0, 0, 55)], "triangle", 0.085, 0.5, 0.25)
+    m = min(len(lead), len(bass))
+    hold = osc("square", midi(83), 0.45, 0.25) * env_exp(int(0.45 * SR), 0.25) * 0.8
+    return _norm(_pad(np.concatenate([lead[:m] + bass[:m], hold]), 0.2), 0.6)
+
+
+def sfx_whos_reveal():
+    """Bright 'it's …!' fanfare."""
+    a = notes([midi(n) for n in (72, 72, 72, 76, 79)], "square", 0.1, 0.5, 0.22, gap=0.01)
+    b = notes([midi(n) for n in (48, 48, 48, 52, 55)], "triangle", 0.1, 0.5, 0.3, gap=0.01)
+    chord = sum(osc("square", midi(n), 0.7, 0.5) * 0.4 for n in (72, 76, 79, 84)) * env_exp(int(0.7 * SR), 0.35)
+    m = min(len(a), len(b))
+    return _norm(_pad(np.concatenate([a[:m] + b[:m] * 0.8, chord]), 0.2), 0.62)
+
+
+def sfx_evolve():
+    """Five seconds of rising shimmer with faster and faster pulses."""
+    d = 5.0
+    t = _t(d)
+    f = 300 * 2 ** (t / d * 2)
+    rate = 2 + 14 * (t / d) ** 2
+    puls = 0.5 + 0.5 * np.sign(np.sin(2 * np.pi * np.cumsum(rate) / SR))
+    tone = (osc("square", f, d, 0.3) * 0.35 + osc("sine", f * 2, d) * 0.3) * (0.4 + 0.6 * puls)
+    tone *= np.linspace(0.4, 1.0, len(t), dtype=np.float32)
+    return _norm(_pad(tone.astype(np.float32), 0.1), 0.5)
+
+
+def sfx_evolve_done():
+    """Short victory tune for 'evolved into …!'."""
+    a = notes([midi(n) for n in (67, 72, 76, 79, 76, 79, 84)], "square", 0.11, 0.5, 0.2)
+    b = notes([midi(n) for n in (48, 52, 55, 60, 55, 60, 64)], "triangle", 0.11, 0.5, 0.3)
+    m = min(len(a), len(b))
+    hold = sum(osc("square", midi(n), 0.9, 0.5) * 0.35 for n in (72, 76, 79, 84)) * env_exp(int(0.9 * SR), 0.45)
+    return _norm(_pad(np.concatenate([a[:m] + b[:m] * 0.8, hold]), 0.2), 0.62)
+
+
+def sfx_badge():
+    """Jingle for receiving a badge."""
+    a = notes([midi(n) for n in (72, 74, 76, 77, 79, 0, 84)], "square", 0.12, 0.5, 0.2)
+    b = notes([midi(n) for n in (60, 62, 64, 65, 67, 0, 72)], "triangle", 0.12, 0.5, 0.3)
+    m = min(len(a), len(b))
+    return _norm(_pad(a[:m] + b[:m] * 0.7, 0.4), 0.6)
+
+
+def sfx_dex_beep():
+    """Index device opening: two beeps and a scan whirr."""
+    beeps = notes([midi(88), 0, midi(93)], "square", 0.07, 0.5, 0.06)
+    d = 1.0
+    t = _t(d)
+    whirr = osc("triangle", 600 + 500 * np.sin(2 * np.pi * 3 * t), d) * 0.3 * np.linspace(1, 0, len(t))
+    return _norm(_pad(np.concatenate([beeps, whirr.astype(np.float32)]), 0.1), 0.5)
+
+
 def sfx_catch_success():
     a = notes([midi(n) for n in (72, 76, 79, 84, 79, 84)], "square", 0.09, 0.5, 0.25)
     hold = osc("square", midi(88), 0.5, 0.5) * env_exp(int(0.5 * SR), 0.3)
@@ -712,6 +768,12 @@ GAME_SOUNDS = {
     "tube_wobble": ("Catch: wobble click", "Creature battle", sfx_tube_wobble),
     "catch_success": ("Catch: success jingle", "Creature battle", sfx_catch_success),
     "catch_fail": ("Catch: broke free", "Creature battle", sfx_catch_fail),
+    "whos_question": ("Who's that …? question sting", "Creature battle", sfx_whos_question),
+    "whos_reveal": ("Who's that …? reveal fanfare", "Creature battle", sfx_whos_reveal),
+    "evolve": ("Evolution: rising shimmer", "Creature battle", sfx_evolve),
+    "evolve_done": ("Evolution: evolved jingle", "Creature battle", sfx_evolve_done),
+    "badge": ("Badge received jingle", "Creature battle", sfx_badge),
+    "dex_beep": ("Index entry: beep and scan", "Creature battle", sfx_dex_beep),
     "music_adventure": ("Music: Adventure (loop)", "Music", music_adventure),
     "music_boss_battle": ("Music: Boss battle (loop)", "Music", music_boss_battle),
     "music_village": ("Music: Calm village (loop)", "Music", music_village),

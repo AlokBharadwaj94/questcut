@@ -275,6 +275,20 @@ Then press <span class='k'>E</span> for attacks: choose the enemy's HP box as th
 turning yellow, then red.</p>
 <p>Press <span class='k'>C</span> for a <b>catch</b>: a sample tube is thrown, flashes, drops, wobbles up to three
 times, then either "Gotcha!" with stars or a burst when it breaks free. Drag the <b>T</b> dot onto the person.</p>
+<h3>More creature-collecting moments</h3>
+<p><b>Who's that …?</b> Press <span class='k'>W</span>. Pick the picture: the video frame at the red line, or any
+picture file. The person is cut out of the background automatically and shown as a black silhouette on blue rays
+with your question and a sting; at the reveal time there's a white flash, the real picture, "It's …!" and a
+fanfare. Drag the yellow <b>person</b> dot onto them and set <i>Picture zoom</i> so the square holds only them.
+The automatic cut-out works best on a plain background. On a busy one, use a PNG with a transparent background, or
+give your own black shape as <i>Own shadow picture</i>.</p>
+<p><b>Evolution:</b> Press <span class='k'>V</span>. "What? … is evolving!", the person glows white and flickers
+between the before and after pictures faster and faster, a flash, the new form and "Congratulations!". The ending
+can also be <i>stops</i>: "Huh? … stopped evolving!". The after picture has its own dot and zoom.</p>
+<p><b>Index entry</b> (HUD tab → creature group): a red handheld index with the picture being scanned in, number,
+name, "The … Creature", two type labels, height, weight and a typed description. <b>Badge received</b>: a shiny
+badge (choose shape and colour) and "… received the … Badge!". New sounds for all of these are under Sounds →
+Creature battle.</p>
 <p>Also in the group: a four-move menu with PP and type, status tags (PAR, SLP, …), the player box with a blue EXP
 bar (keyframe <i>EXP</i> to fill it), and a level-up stats window that shows the gains, then the totals.</p>
 <p><b>Camera:</b> film from behind your fighter (their back at the bottom-left) with the opponent facing the camera.
@@ -295,7 +309,41 @@ highlight slides down the list, as if someone is scrolling.</p>
 <div class='try'><b>Try it:</b> put the Skyrim compass and bars over the GoPro clip, then add
 "SKILL INCREASED" when the character picks up the pipette.</div>
 """),
-    ("12. Keyboard shortcuts", """
+    ("12. Big edits: insert, remove time, select many, groups", """
+<h2>Edits that move the whole movie</h2>
+<h3>Insert a clip in the middle (everything after it moves)</h3>
+<p>Click <b>⇥ Insert mode</b> in the toolbar (or press <span class='k'>Ins</span>) so it stays pressed.
+Now when you drop a camera clip, picture or card in the middle of the movie, everything after that point, on
+<b>every</b> track, moves later to make room: sounds, spells, HUD, music. A clip that was playing at that point is
+cut in two. HUD elements, effect layers and looping music are not cut; they get longer instead, so a frame or a
+health bar keeps going over the new part. Paste (<span class='k'>Ctrl+V</span>) works the same way.
+Click the button again to switch it off.</p>
+<p><b>Insert empty time:</b> Edit → <i>Insert empty time at playhead</i> (<span class='k'>Ctrl+Shift+T</span>)
+pushes everything after the red line later by the number of seconds you type.</p>
+<h3>Remove a stretch of time from everything</h3>
+<ol>
+<li>Mark it: press <span class='k'>I</span> at the start and <span class='k'>O</span> at the end, or hold
+<span class='k'>Shift</span> and drag along the time ruler at the top. The stretch turns blue.</li>
+<li>Press <span class='k'>Ctrl+Shift+Delete</span> (or right-click → <i>Remove the marked … s</i>).</li>
+</ol>
+<p>That stretch disappears from every track and everything after it slides left: no gaps, nothing out of sync.
+Animations on both sides of the cut stay exactly as they were. Locked tracks (🔒) are left alone.
+Without marks, it removes the time covered by the selected pieces. <span class='k'>Alt+X</span> clears the marks.</p>
+<h3>Select many pieces</h3>
+<p>Drag on an empty part of the timeline to draw a box: everything it touches is selected. Hold
+<span class='k'>Ctrl</span> to add to what is already selected. Then drag any of them to move them all, or press
+<span class='k'>Delete</span>. A plain click on an empty part still moves the red line. (To scrub, drag in the
+time ruler at the top.)</p>
+<h3>Groups</h3>
+<p>Select pieces and press <span class='k'>G</span>. They get a coloured stripe and a ⛓. Clicking one selects
+the whole group, and dragging moves them together. <span class='k'>Shift+G</span> ungroups.
+<span class='k'>Alt+click</span> picks just one piece in a group, for example to change one damage number.</p>
+<p>All one-click sequences (spell, battle, catch, quest talk, fight, Who's that, evolution) come out as a group,
+so you can move a whole fight with one drag.</p>
+<div class='try'><b>Try it:</b> mark 2 seconds in the middle of the practice movie with Shift+drag on the ruler and
+press Ctrl+Shift+Delete. Then press Ctrl+Z, switch on Insert mode and drop the GoPro clip at the same place.</div>
+"""),
+    ("13. Keyboard shortcuts", """
 <h2>Shortcuts</h2>
 <table>
 <tr><td><span class='k'>Space</span></td><td>Play / pause</td></tr>
@@ -304,6 +352,13 @@ highlight slides down the list, as if someone is scrolling.</p>
 <tr><td><span class='k'>Home / End</span></td><td>Start / end of movie</td></tr>
 <tr><td><span class='k'>S</span></td><td>Split (cut) at playhead</td></tr>
 <tr><td><span class='k'>Delete</span> / <span class='k'>Shift+Delete</span></td><td>Delete / delete and close gap</td></tr>
+<tr><td><span class='k'>Ins</span></td><td>Insert mode on / off</td></tr>
+<tr><td><span class='k'>I</span> / <span class='k'>O</span></td><td>Mark start / end of a stretch of time</td></tr>
+<tr><td><span class='k'>Ctrl+Shift+Delete</span></td><td>Remove the marked time from every track</td></tr>
+<tr><td><span class='k'>Ctrl+Shift+T</span></td><td>Insert empty time at the playhead</td></tr>
+<tr><td><span class='k'>G</span> / <span class='k'>Shift+G</span></td><td>Group / ungroup</td></tr>
+<tr><td><span class='k'>Ctrl+G</span></td><td>Close the gap at the playhead</td></tr>
+<tr><td><span class='k'>B</span> / <span class='k'>C</span> / <span class='k'>W</span> / <span class='k'>V</span></td><td>Battle start / catch / Who's that…? / evolution</td></tr>
 <tr><td><span class='k'>Ctrl+C / V / D</span></td><td>Copy / paste / duplicate</td></tr>
 <tr><td><span class='k'>Ctrl+Z / Ctrl+Shift+Z</span></td><td>Undo / redo</td></tr>
 <tr><td><span class='k'>A</span></td><td>Switch camera here</td></tr>

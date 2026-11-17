@@ -2473,3 +2473,5 @@ for _g in (G_RS, G_SV, G_SK, G_ER, G_PK, G_MORE):
 BAR_TYPES.update({"rs_hpbar", "sk_bars", "sk_compass", "er_boss", "zl_hearts", "pk_hpbox", "sf_versus"})
 PORTRAIT_TYPES.update({"sv_dialogue", "rs_dialogue"})
 FULLSCREEN_TYPES.update({"sk_skills", "sk_inventory", "er_grace", "pk_encounter", "pk_menu", "pk_capture"})
+
+from . import creature  # noqa: E402,F401  (adds more creature-battle pieces)

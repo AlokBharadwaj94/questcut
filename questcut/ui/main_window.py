@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout
                                QVBoxLayout, QWidget)
 
 from .. import audio as audiomod
+from .. import edit_ops
 from ..backend import AUDIO, HW, detect_hardware, probe_audio_devices
 from ..cards import CARD_TYPES, card_defaults
 from ..hud import BAR_TYPES, FULLSCREEN_TYPES, HUD_TYPES, PORTRAIT_TYPES, hud_defaults
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
         self.undo_stack, self.redo_stack = [], []
         self._last_edit = (None, 0.0)
         self.clipboard = []
+        self.insert_mode = False
         self.thumbs = {}
         self.proxy_jobs = set()
         self.preview_quality = "auto"
@@ -291,6 +293,20 @@ class MainWindow(QMainWindow):
         self._act("Duplicate", self.duplicate_selected, "Ctrl+D", menu=e)
         self._act("Select all clips", self.select_all, QKeySequence.StandardKey.SelectAll, menu=e)
         self._act("Close gap at playhead (all tracks)", lambda: self.close_gap(self.playhead), "Ctrl+G", menu=e)
+        e.addSeparator()
+        self.insert_action = self._act("⇥ Insert mode", self.toggle_insert_mode, "Ins",
+                                       "Insert mode: a clip added in the middle pushes everything after it "
+                                       "(all tracks) later, instead of covering what is there (Ins)", e, tb)
+        self.insert_action.setCheckable(True)
+        self._act("Insert empty time at playhead (all tracks)…", self.insert_time_dialog, "Ctrl+Shift+T", menu=e)
+        self._act("Mark start of a stretch of time", self.set_mark_in, "I", menu=e)
+        self._act("Mark end of a stretch of time", self.set_mark_out, "O", menu=e)
+        self._act("Remove marked time from all tracks (close it up)", self.remove_marked_time,
+                  "Ctrl+Shift+Delete", menu=e)
+        self._act("Clear the marks", self.clear_marks, "Alt+X", menu=e)
+        e.addSeparator()
+        self._act("Group selected pieces", self.group_selected, "G", menu=e)
+        self._act("Ungroup", self.ungroup_selected, "Shift+G", menu=e)
         self._act("Hide / show piece", self.toggle_enabled, "H", menu=e)
         tb.addSeparator()
         c = mb.addMenu("&Camera")
@@ -309,6 +325,10 @@ class MainWindow(QMainWindow):
                   tip="Transition + HP boxes + 'A wild … appeared!' + menu + music, all at the playhead", menu=g)
         self._act("Catch sequence here… (Pokémon style)", self.capture_combo, "C",
                   tip="Throw, wobbles, caught or broke free, with sounds and message", menu=g)
+        self._act("Who's that …? here (Pokémon style)", self.whos_combo, "W",
+                  tip="Silhouette + question, then flash + reveal, with sounds", menu=g)
+        self._act("Evolution here… (Pokémon style)", self.evolve_combo, "V",
+                  tip="Before picture flickers into the after picture, with messages and sounds", menu=g)
         g.addSeparator()
         self._act("Quest conversation here… (RuneScape style)", self.quest_talk_combo, "Q",
                   tip="NPC chat boxes + 'Select an Option' + your reply + 'quest started' message", menu=g)
@@ -549,7 +569,8 @@ class MainWindow(QMainWindow):
 
     def viewer_handles(self):
         sel = self.selected_clips()
-        if len(sel) != 1:
+        if len(sel) != 1 and not (sel and sel[0].props.get("group") and
+                                  all(c.props.get("group") == sel[0].props.get("group") for c in sel)):
             return []
         c = sel[0]
         t_rel = self.playhead - c.start
@@ -567,7 +588,10 @@ class MainWindow(QMainWindow):
         if c.kind == "hud":
             if c.hud_type in PORTRAIT_TYPES:
                 if c.media_id:
-                    add("face (portrait)", "portrait_x", "portrait_y", "abs")
+                    add("face (portrait)" if c.hud_type in ("sv_dialogue", "rs_dialogue") else "person",
+                        "portrait_x", "portrait_y", "abs")
+                if c.hud_type == "pk_evolve" and c.props.get("media2"):
+                    add("after (person)", "pic2_x", "pic2_y", "abs")
             elif c.hud_type == "pk_capture":
                 add("T  target", "target_x", "target_y", "abs")
                 add("throw from", "from_x", "from_y", "abs")
@@ -788,6 +812,10 @@ class MainWindow(QMainWindow):
         self.push_undo()
         for tr in self.project.tracks:
             tr.clips = [c for c in tr.clips if c.media_id != mid]
+            for c in tr.clips:
+                for k, v in c.picture_refs().items():
+                    if v == mid:
+                        c.props[k] = ""
         self.project.media.pop(mid, None)
         self.refresh_all()
 
@@ -827,6 +855,10 @@ class MainWindow(QMainWindow):
             self.apply_look_payload(payload)
             return
         self.push_undo()
+        if self.insert_mode:
+            ins = self._insert_length(payload, track)
+            if ins > 0:
+                edit_ops.insert_time(self.project, t, ins)
         new = None
         if kind == "media":
             m = self.project.media.get(payload["id"])
@@ -978,38 +1010,122 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     # ================================================================ cutting
+    # ================================================================ whole-movie edits
+    def toggle_insert_mode(self):
+        self.insert_mode = self.insert_action.isChecked()
+        self.status("Insert mode ON: a clip you add in the middle pushes everything after it later, on all tracks "
+                    "(sounds, spells, HUD too)." if self.insert_mode else
+                    "Insert mode OFF: added clips go on top / beside what is there.", 10000)
+
+    def _insert_length(self, payload, track):
+        kind = payload.get("type")
+        if kind == "media":
+            m = self.project.media.get(payload.get("id"))
+            if m is None:
+                return 0.0
+            if m.kind == "video":
+                return m.duration
+            if m.kind == "image" and track is not None and track.kind == "video":
+                return 5.0
+        if kind == "card":
+            return CARD_TYPES[payload["name"]]["duration"]
+        return 0.0
+
+    def set_mark_in(self):
+        self.timeline.mark_in = self.playhead
+        if self.timeline.mark_out is None or self.timeline.mark_out <= self.playhead:
+            self.timeline.mark_out = None
+        self.timeline.update()
+        self.status("Start marked. Move to the end of the stretch and press O.")
+
+    def set_mark_out(self):
+        self.timeline.mark_out = self.playhead
+        self.timeline.update()
+        rng = self.timeline.marked_range()
+        if rng:
+            self.status(f"Marked {rng[1] - rng[0]:.2f} s. Ctrl+Shift+Delete removes it from every track.", 12000)
+        else:
+            self.status("End marked. Now mark the start with I.")
+
+    def clear_marks(self):
+        self.timeline.mark_in = self.timeline.mark_out = None
+        self.timeline.update()
+
+    def remove_marked_time(self):
+        rng = self.timeline.marked_range()
+        how = "marked"
+        if rng is None:
+            sel = self.selected_clips()
+            if not sel:
+                self.status("Mark a stretch first (I at the start, O at the end, or Shift+drag on the time ruler), "
+                            "or select the pieces whose time you want to remove.", 12000)
+                return
+            rng = (min(c.start for c in sel), max(c.end for c in sel))
+            how = "selected"
+        a, b = rng
+        self.push_undo()
+        n = edit_ops.remove_time(self.project, a, b)
+        locked = [t.name for t in self.project.tracks if t.locked]
+        self.clear_marks()
+        self.timeline.selected = []
+        if self.playhead > b:
+            self.playhead -= b - a
+        elif self.playhead > a:
+            self.playhead = a
+        self.refresh_all()
+        self.set_playhead(self.playhead)
+        msg = f"Removed the {how} {b - a:.2f} s from every track and closed it up ({n} piece(s) changed)."
+        if locked:
+            msg += f" Locked tracks were left alone: {', '.join(locked)}."
+        self.status(msg + " Ctrl+Z undoes it.", 15000)
+
+    def insert_time_dialog(self):
+        from PySide6.QtWidgets import QInputDialog
+        rng = self.timeline.marked_range()
+        dflt = round(rng[1] - rng[0], 2) if rng else 2.0
+        sec, ok = QInputDialog.getDouble(self, "Insert empty time",
+                                         "Seconds of empty time to insert at the red playhead.\n"
+                                         "Everything after it, on every track, moves later:", dflt, 0.1, 600, 2)
+        if ok:
+            self.insert_time_at(self.playhead, sec)
+
+    def insert_time_at(self, t, sec):
+        self.push_undo()
+        n = edit_ops.insert_time(self.project, t, sec)
+        self.refresh_all()
+        self.status(f"Inserted {sec:.2f} s at {fmt_time(t)}: {n} piece(s) moved or got longer. HUD elements and "
+                    "looping music that were running there now run {sec:.2f} s longer.".replace("{sec:.2f}",
+                                                                                                f"{sec:.2f}"), 12000)
+
+    def group_selected(self):
+        sel = self.selected_clips()
+        if len(sel) < 2:
+            self.status("Select two or more pieces first (Ctrl+click, or drag a box around them).")
+            return
+        self.push_undo()
+        edit_ops.make_group(sel)
+        self.refresh_all()
+        self.status(f"Grouped {len(sel)} pieces: clicking one selects all, dragging moves them together. "
+                    "Alt+click picks just one.", 12000)
+
+    def ungroup_selected(self):
+        sel = [c for c in self.selected_clips() if c.props.get("group")]
+        if not sel:
+            return
+        self.push_undo()
+        edit_ops.ungroup(sel)
+        self.refresh_all()
+        self.status(f"Ungrouped {len(sel)} pieces.")
+
+    def _group_new(self, before_ids):
+        """Pieces made by a one-click sequence stay together as a group."""
+        new = [c for c in self.project.all_clips() if c.id not in before_ids]
+        if len(new) > 1:
+            edit_ops.make_group(new)
+
     def _split_clip(self, tr, c, t):
         """Cut clip c at movie time t. Returns the new right-hand piece."""
-        if not (c.start + 0.01 < t < c.end - 0.01):
-            return None
-        rel = t - c.start
-        d = asdict(c)
-        right = Clip(**copy.deepcopy(d))
-        right.id = new_id("c")
-        right.start = t
-        right.duration = c.end - t
-        if not c.freeze and c.media_id and c.kind in ("video", "audio"):
-            speed = float(c.props.get("speed", 1.0) or 1.0)
-            right.source_in = c.source_in + rel * speed
-        # keyframes: keep the values continuous on both sides
-        left_k, right_k = {}, {}
-        for key, keys in c.keyframes.items():
-            v = c.value(key, rel)
-            lk = [k for k in keys if k[0] < rel - 1e-3] + [[rel, v, "smooth"]]
-            rk = [[0.0, v, "smooth"]] + [[k[0] - rel, k[1], k[2] if len(k) > 2 else "smooth"] for k in keys
-                                         if k[0] > rel + 1e-3]
-            left_k[key], right_k[key] = lk, rk
-        c.keyframes, right.keyframes = left_k, right_k
-        c.duration = rel
-        c.transition_out = {"type": "none", "duration": 0.5}
-        right.transition_in = {"type": "none", "duration": 0.5}
-        c.props.pop("fade_out", None)
-        right.props.pop("fade_in", None)
-        if c.hud_type in ("dialogue",):
-            pass
-        tr.clips.append(right)
-        tr.sort()
-        return right
+        return edit_ops.split_clip(tr, c, t)
 
     def split_at_playhead(self):
         t = round(self.playhead * self.project.fps) / self.project.fps
@@ -1060,6 +1176,9 @@ class MainWindow(QMainWindow):
             return
         t = self.playhead if at is None else at
         self.push_undo()
+        if self.insert_mode and any(d["kind"] in ("video", "image", "card") for _, _, d in self.clipboard):
+            span = max(off + d["duration"] for _, off, d in self.clipboard)
+            edit_ops.insert_time(self.project, t, span)
         new = []
         for tid, off, d in self.clipboard:
             c = Clip(**copy.deepcopy(d))
@@ -1072,6 +1191,7 @@ class MainWindow(QMainWindow):
             tr.clips.append(c)
             tr.sort()
             new.append(c)
+        edit_ops.renew_groups(new)
         self._select(new)
         self.refresh_all()
 
@@ -1367,6 +1487,7 @@ class MainWindow(QMainWindow):
     def create_spell(self, v):
         t = self.playhead
         self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
         pr = hud_defaults("spell")
         pr.update({"spell_name": v["name"], "style": v["style"], "color": v["color"], "hit_time": v["hit_time"],
                    "damage_amount": float(v["damage"]), "damage": "", "shake": v["shake"], "flash": v["flash"]})
@@ -1393,43 +1514,82 @@ class MainWindow(QMainWindow):
             atr.clips.append(Clip(new_id("c"), "audio", round(at, 4), m.duration, m.name, m.id))
             atr.sort()
         self._select([spell])
+        self._group_new(before)
         self.refresh_all()
         tip = "" if target is not None else " No health bar yet? Add one later and click 'Link spells' in its settings."
         self.status("Spell created. Drag the C (caster) and T (target) dots in the preview into place." + tip, 15000)
 
-    def grab_portrait(self, clip_id):
-        """Saves the current picture (video only, no HUD) and uses it as the
-        dialogue portrait; the 'face' dot then picks the face."""
+    def snapshot_media(self, t=None):
+        """Saves the video picture at time t (no HUD) as a PNG in the project and returns its media id."""
         import cv2
         from ..media import MediaPool
         from ..renderer import Renderer
-        c = self.project.clip(clip_id)
-        if c is None:
-            return
         snap = self.project.clone()
         for tr in snap.tracks:
             if tr.kind == "hud":
                 tr.hidden = True
         pool = MediaPool(snap, use_proxies=False)
         try:
-            img = Renderer(snap, pool, preview=False).render(self.playhead, self.project.width, self.project.height)
+            img = Renderer(snap, pool, preview=False).render(self.playhead if t is None else t,
+                                                             self.project.width, self.project.height)
         finally:
             pool.close()
         folder = os.path.join(self.project.folder or cache_dir(None), "portraits")
         os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, time.strftime("portrait_%Y%m%d_%H%M%S.png"))
+        path = os.path.join(folder, time.strftime("portrait_%Y%m%d_%H%M%S") + f"_{int(time.time() * 1000) % 1000:03d}.png")
         ok, data = cv2.imencode(".png", img[..., ::-1])
         if not ok:
-            return
+            return None
         data.tofile(path)
         m = self.project.add_media(probe(path))
-        self.push_undo()
-        c.media_id = m.id
-        c.props.update({"portrait_x": 0.5, "portrait_y": 0.4, "portrait_size": 0.35})
         self._post_import(m)
+        return m.id
+
+    def grab_portrait(self, clip_id, prop=None):
+        """Uses the current video picture as the clip's portrait (or as the picture in props[prop]);
+        the yellow 'face' dot then picks the face."""
+        c = self.project.clip(clip_id)
+        if c is None:
+            return
+        self.push_undo()
+        mid = self.snapshot_media()
+        if mid is None:
+            return
+        if prop:
+            c.props[prop] = mid
+            if prop == "media2":
+                c.props.update({"pic2_x": 0.5, "pic2_y": 0.45, "pic2_size": 0.8})
+            self.refresh_all()
+            self.status("Picture taken from this frame. Drag its yellow dot onto the person.", 8000)
+            return
+        c.media_id = mid
+        c.props.update({"portrait_x": 0.5, "portrait_y": 0.4, "portrait_size": 0.35})
         self.refresh_all()
-        self.status("Portrait taken from this frame. Drag the yellow 'face' dot onto the speaker's face; "
-                    "use 'Face zoom' to frame it.", 15000)
+        self.status("Picture taken from this frame. Drag the yellow 'face' dot onto the person; "
+                    "use the zoom setting to frame them.", 15000)
+
+    def add_picture_file(self, path):
+        """Imports one picture now (not in the background) and returns its media id."""
+        m = self.project.add_media(probe(path))
+        self._post_import(m)
+        return m.id
+
+    def choose_picture(self, clip_id, prop=None):
+        exts = " ".join("*" + e for e in sorted(IMAGE_EXT)) + " " + " ".join("*" + e.upper() for e in sorted(IMAGE_EXT))
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a picture", self.project.folder, f"Pictures ({exts})")
+        if not path:
+            return
+        c = self.project.clip(clip_id)
+        if c is None:
+            return
+        mid = self.add_picture_file(path)
+        self.push_undo()
+        if prop:
+            c.props[prop] = mid
+        else:
+            c.media_id = mid
+            c.props.update({"portrait_x": 0.5, "portrait_y": 0.5, "portrait_size": 1.0})
+        self.refresh_all()
 
     def set_portrait_media(self, clip_id, media_id):
         c = self.project.clip(clip_id)
@@ -1476,6 +1636,7 @@ class MainWindow(QMainWindow):
         v = dlg.values()
         t = self.playhead
         self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
         enc = 3.4 if v["wipe"] == "vs" else 2.2
         self._hud_at("pk_encounter", t, enc, {"wipe": v["wipe"], "left_name": v["player"], "right_name": v["enemy"]},
                      top=True)
@@ -1496,6 +1657,7 @@ class MainWindow(QMainWindow):
             self._sound_at("music_boss_battle", b, loop_dur=length)
         enemy.props["bar_key"] = new_id("bar")
         self._select([enemy])
+        self._group_new(before)
         self.refresh_all()
         self.status("Battle placed. Spells (E) can now target the enemy's HP box. Move the boxes by dragging their "
                     "yellow dots.", 15000)
@@ -1534,10 +1696,12 @@ class MainWindow(QMainWindow):
             return
         plan, length = plan_quest_talk(dlg.values())
         self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
         made = self._place_plan(plan, self.playhead)
         first = (made.get("npc") or [None])[0]
         if first:
             self._select([first])
+        self._group_new(before)
         self.refresh_all()
         self.status(f"Quest conversation placed ({length:.0f} s). Select an NPC box and use 'Face picture' to add "
                     "the NPC's face. Change any text in the right panel.", 15000)
@@ -1550,11 +1714,72 @@ class MainWindow(QMainWindow):
             return
         plan, st = plan_fight(dlg.values())
         self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
         made = self._place_plan(plan, self.playhead)
         self._select(made.get("enemy_bar", []) + made.get("player_bar", []))
+        self._group_new(before)
         self.refresh_all()
         self.status(f"Fight placed: {st['rounds']} attacks, {st['length']:.0f} s. Drag each health bar's yellow dot "
                     "over a fighter's head (keyframe it if they move); the damage splats follow the bars.", 20000)
+
+    def _picture_from(self, choice):
+        if choice["mode"] == "file" and choice["path"]:
+            return self.add_picture_file(choice["path"])
+        if choice["mode"] == "frame":
+            return self.snapshot_media()
+        return ""
+
+    def whos_combo(self):
+        from .dialogs import WhosDialog
+        dlg = WhosDialog(self)
+        if not dlg.exec():
+            return
+        v = dlg.values()
+        t = self.playhead
+        self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
+        mid = self._picture_from(v["pic"])
+        dur = v["reveal"] + v["after"]
+        c = self._hud_at("pk_whos", t, dur, {"name": v["name"], "question": v["question"], "answer": v["answer"],
+                                             "reveal_time": v["reveal"],
+                                             "background": "rays" if v["rays"] else "none"}, top=True)
+        c.media_id = mid or None
+        if v["pic"]["mode"] == "frame":
+            c.props.update({"portrait_x": 0.5, "portrait_y": 0.45, "portrait_size": 0.8})
+        self._sound_at("whos_question", t + 0.3)
+        self._sound_at("whos_reveal", t + v["reveal"])
+        self._select([c])
+        self._group_new(before)
+        self.refresh_all()
+        self.status("'Who's that …?' placed. Drag the yellow 'face' dot onto the person and set 'Picture zoom' so "
+                    "only they are in the square; the silhouette updates by itself.", 20000)
+
+    def evolve_combo(self):
+        from .dialogs import EvolveDialog
+        dlg = EvolveDialog(self)
+        if not dlg.exec():
+            return
+        v = dlg.values()
+        t = self.playhead
+        self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
+        mid_a = self._picture_from(v["pic_a"])
+        mid_b = self._picture_from(v["pic_b"])
+        c = self._hud_at("pk_evolve", t, 11.0, {"name": v["name_a"], "name2": v["name_b"], "result": v["result"],
+                                                "media2": mid_b or ""}, top=True)
+        if v["pic_b"]["mode"] == "frame":
+            c.props.update({"pic2_x": 0.5, "pic2_y": 0.45, "pic2_size": 0.8})
+        c.media_id = mid_a or None
+        if v["pic_a"]["mode"] == "frame":
+            c.props.update({"portrait_x": 0.5, "portrait_y": 0.45, "portrait_size": 0.8})
+        self._sound_at("text_blip", t + 0.2)
+        self._sound_at("evolve", t + 2.0)
+        self._sound_at("evolve_done" if v["result"] == "evolves" else "catch_fail", t + 7.0)
+        self._select([c])
+        self._group_new(before)
+        self.refresh_all()
+        self.status("Evolution placed. Drag the yellow 'face' dot onto the person; set the 'After: picture' in the "
+                    "right panel if you chose 'later'.", 20000)
 
     def capture_combo(self):
         from .dialogs import CaptureDialog
@@ -1564,6 +1789,7 @@ class MainWindow(QMainWindow):
         v = dlg.values()
         t = self.playhead
         self.push_undo()
+        before = {c.id for c in self.project.all_clips()}
         shakes = v["shakes"]
         dur = 0.8 + 0.9 + 0.5 + shakes * 0.9 + 1.6
         cap = self._hud_at("pk_capture", t, dur, {"shakes": float(shakes), "result": v["result"],
@@ -1581,6 +1807,7 @@ class MainWindow(QMainWindow):
             msg = v["fail_text"].replace("{name}", v["name"].upper())
         self._hud_at("pk_text", end + 0.1, 3.0, {"text": msg})
         self._select([cap])
+        self._group_new(before)
         self.refresh_all()
         self.status("Catch placed. Drag the T dot onto the person being caught, and 'throw from' onto the thrower.",
                     15000)

@@ -26,10 +26,20 @@ def ensure_env(gpu=False):
     if not os.path.exists(PY):
         print("First start: setting up QuestCut (one time only, a few minutes)…", flush=True)
         sh([sys.executable, "-m", "venv", VENV])
-    if not os.path.exists(STAMP):
+    req_file = os.path.join(HERE, "requirements.txt")
+    with open(req_file) as f:
+        wanted = f.read()
+    have = ""
+    if os.path.exists(STAMP):
+        with open(STAMP) as f:
+            have = f.read()
+    if have != wanted:          # first start, or an update needs something new
+        if have:
+            print("QuestCut was updated: installing what the new version needs…", flush=True)
         sh([PY, "-m", "pip", "install", "--upgrade", "pip"])
-        sh([PY, "-m", "pip", "install", "-r", os.path.join(HERE, "requirements.txt")])
-        open(STAMP, "w").write("ok")
+        sh([PY, "-m", "pip", "install", "-r", req_file])
+        with open(STAMP, "w") as f:
+            f.write(wanted)
     if gpu:
         # CuPy for CUDA 12 (most current NVIDIA drivers). Use cupy-cuda11x for older CUDA 11 drivers.
         sh([PY, "-m", "pip", "install", "cupy-cuda12x"])

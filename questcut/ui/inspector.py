@@ -266,6 +266,35 @@ class Inspector(QScrollArea):
             self._rows.append(refresh)
             refresh()
             return
+        if kind == "image":
+            combo = QComboBox()
+            combo.addItem("(none)", "")
+            for m in mw.project.media.values():
+                if m.kind == "image":
+                    combo.addItem(m.name, m.id)
+            busy = [False]
+
+            def refresh():
+                busy[0] = True
+                combo.setCurrentIndex(max(0, combo.findData(cur() or "")))
+                busy[0] = False
+            combo.currentIndexChanged.connect(lambda i: None if busy[0] else setv(combo.itemData(i), merge=False))
+            row = QWidget()
+            hl = QHBoxLayout(row)
+            hl.setContentsMargins(0, 0, 0, 0)
+            hl.addWidget(combo, 1)
+            bf = QPushButton("File…")
+            bf.setToolTip("Choose a picture file (PNG with transparency works best for silhouettes)")
+            bf.clicked.connect(lambda: mw.choose_picture(clip_getter().id, key))
+            bg = QPushButton("Frame")
+            bg.setToolTip("Use the video picture at the red playhead")
+            bg.clicked.connect(lambda: mw.grab_portrait(clip_getter().id, key))
+            hl.addWidget(bf)
+            hl.addWidget(bg)
+            form.addRow(label, row)
+            self._rows.append(refresh)
+            refresh()
+            return
         if kind == "text":
             le = QLineEdit()
             le.setText(str(cur() or ""))
@@ -559,12 +588,17 @@ class Inspector(QScrollArea):
             self.add_param(form, get, sp[0], sp, keyframable=sp[2] == "float" and sp[0] not in ("anim_dur",))
 
     def _portrait_section(self, lay, c):
+        from ..creature import PORTRAIT_TITLES
         mw = self.mw
-        box, form, v = self.section(lay, "Portrait (who is talking)", "cpu")
-        b = QPushButton("Grab portrait from the current frame")
-        b.setToolTip("Move the red playhead to a moment where the speaker's face is clear, then click.")
+        box, form, v = self.section(lay, PORTRAIT_TITLES.get(c.hud_type, "Portrait (who is talking)"), "cpu")
+        b = QPushButton("Grab picture from the current frame")
+        b.setToolTip("Move the red playhead to a moment where the person is clearly visible, then click.")
         b.clicked.connect(lambda: mw.grab_portrait(c.id))
         v.insertWidget(0, b)
+        bf = QPushButton("Choose a picture file…")
+        bf.setToolTip("Any photo or drawing. A PNG with a transparent background gives the cleanest silhouette.")
+        bf.clicked.connect(lambda: mw.choose_picture(c.id, None))
+        v.insertWidget(1, bf)
         combo = QComboBox()
         combo.addItem("(no picture)", "")
         for m in mw.project.media.values():
