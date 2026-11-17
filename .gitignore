@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# QuestCut working files (made on each computer, never needed in the repo)
+QuestCut_cache/
+portraits/
+*.questcut.bak
+
+# Your footage and exports stay on your computer
+*.mp4
+*.mov
+*.MP4
+*.MOV
+*.wav
+*.m4a
+
+# OS clutter
+.DS_Store
+Thumbs.db
