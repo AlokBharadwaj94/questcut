@@ -249,7 +249,7 @@ during a conversation, cut the clock there and set <i>Game minutes per second</i
 choose from, and which answer you pick. You get: the parchment chat box at the bottom with the NPC's name in dark
 red and blue "Click here to continue"; the <b>Select an Option</b> list where your answer lights up white; your
 reply in a box with your head on the right; the red "You have started a new quest" message; blip and select
-sounds; calm village music under it. To show the NPC's face in the box: select the box → <i>Face picture</i> →
+sounds; the warm 'Quest giver' music under it and the 'Quest accepted' jingle. To show the NPC's face in the box: select the box → <i>Face picture</i> →
 grab it from the video, exactly like the Stardew portrait.</p>
 <p><b>2 · The fight.</b> Press <span class='k'>K</span> (or <b>⚔ Fight…</b>). Give both fighters a name, their
 health and their biggest hit. You get a small green-over-red <b>health bar above each head</b>, then turns of
@@ -259,6 +259,19 @@ always survive, and "You have defeated …" appears at the end. Then <b>drag eac
 fighter's head</b>. If they move, keyframe the bar's X and Y. The splats follow their bar on their own.
 Don't like the random numbers? Undo and press <span class='k'>K</span> again; or click a splat and type a new
 number (the bar follows).</p>
+<h3>Music for quests</h3>
+<p>The Sounds tab has two sets of orchestral music made by QuestCut itself (no copyright problems), each with
+a ▶ Listen button. Music pieces repeat seamlessly for as long as you stretch them on the timeline.</p>
+<p><b>Medieval quest (RuneScape-like):</b> <i>Quest giver</i> (warm village tune, flute and lute) ·
+<i>Quest accepted</i> (short jingle) · <i>Setting off</i> (hopeful travelling) · <i>Tavern jig</i> ·
+<i>Sneaking</i> (pizzicato tiptoe) · <i>Battle: drums and horns</i> · <i>Quest complete: big fanfare</i>.</p>
+<p><b>Dark fantasy (Elden Ring-like):</b> <i>Monster steals the treasure</i> (driving danger music) ·
+<i>Dread</i> (short shock when something terrible happens) · <i>Dark boss</i> (choir and war drums) ·
+<i>Enemy felled</i> (short golden swell after a big win) · <i>Resting place</i> (calm, sad) · <i>Lament</i>
+(loss and sorrow).</p>
+<p>A quest scene could run: Quest giver → Quest accepted → Setting off → Dread (the monster appears) →
+Monster steals the treasure → Dark boss → Enemy felled → Quest complete fanfare. Overlap the end of one piece
+with the start of the next and give both a fade (right panel) so they blend.</p>
 <p><b>3 · The reward.</b> HUD tab → RuneScape group → <b>Quest complete scroll</b>: quest name, item icon, reward lines
 (they appear one by one) and fireworks. Add the <b>Quest complete</b> sound and, under it, <b>Chat-box game
 messages</b> for "Congratulations! Quest complete!". In those messages, <i>[red]</i>, <i>[blue]</i>,

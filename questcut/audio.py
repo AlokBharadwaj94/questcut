@@ -774,20 +774,32 @@ GAME_SOUNDS = {
     "evolve_done": ("Evolution: evolved jingle", "Creature battle", sfx_evolve_done),
     "badge": ("Badge received jingle", "Creature battle", sfx_badge),
     "dex_beep": ("Index entry: beep and scan", "Creature battle", sfx_dex_beep),
-    "music_adventure": ("Music: Adventure (loop)", "Music", music_adventure),
-    "music_boss_battle": ("Music: Boss battle (loop)", "Music", music_boss_battle),
-    "music_village": ("Music: Calm village (loop)", "Music", music_village),
-    "music_suspense": ("Music: Suspense (loop)", "Music", music_suspense),
-    "music_victory": ("Music: Victory jingle", "Music", music_victory),
+    "music_adventure": ("Adventure (loop)", "Music: retro 8-bit", music_adventure),
+    "music_boss_battle": ("Boss battle (loop)", "Music: retro 8-bit", music_boss_battle),
+    "music_village": ("Calm village (loop)", "Music: retro 8-bit", music_village),
+    "music_suspense": ("Suspense (loop)", "Music: retro 8-bit", music_suspense),
+    "music_victory": ("Victory jingle", "Music: retro 8-bit", music_victory),
 }
 
 
+# Orchestral music (medieval quest / dark fantasy), stereo. Listed before the retro music.
+from .music_themes import THEMES  # noqa: E402
+
+_retro = {k: v for k, v in GAME_SOUNDS.items() if v[1] == "Music: retro 8-bit"}
+for _k in _retro:
+    GAME_SOUNDS.pop(_k)
+GAME_SOUNDS.update(THEMES)
+GAME_SOUNDS.update(_retro)
+SOUND_VERSIONS = {k: 1 for k in THEMES}
+
 def game_sound_file(folder: str, name: str) -> str:
-    """Creates (once) and returns the WAV file for a built-in game sound."""
+    """Creates (once) and returns the WAV file for a built-in game sound.
+    A version number in the file name makes improved sounds replace old copies."""
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, f"{name}.wav")
+    ver = SOUND_VERSIONS.get(name)
+    path = os.path.join(folder, f"{name}_v{ver}.wav" if ver else f"{name}.wav")
     if not os.path.exists(path):
         sig = GAME_SOUNDS[name][2]()
-        stereo = np.stack([sig, sig], axis=1)
+        stereo = sig if sig.ndim == 2 else np.stack([sig, sig], axis=1)
         write_wav(path, stereo)
     return path

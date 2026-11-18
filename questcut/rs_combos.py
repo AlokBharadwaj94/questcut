@@ -38,10 +38,10 @@ def plan_quest_talk(v):
     if v.get("quest"):
         out.append(("hud", "rs_gamemsg", t, 5.0,
                     {"lines": f"[red]You have started a new quest: [blue]{v['quest']}", "interval": 0.0}, "msg"))
-        out.append(("sound", "powerup", t, None))
+        out.append(("sound", "jingle_quest_accepted", t, None))
         t += 5.0
     if v.get("music"):
-        out.append(("sound", "music_village", 0.0, t))
+        out.append(("sound", "music_quest_giver", 0.0, t))
     return out, t
 
 
@@ -98,6 +98,6 @@ def plan_fight(v, seed=None):
     out.append(("hud", "rs_gamemsg", end + 0.8, 4.0,
                 {"lines": f"You have defeated [red]{v['enemy']}[black].", "interval": 0.0}, "msg"))
     if v.get("music"):
-        out.append(("sound", "music_boss_battle", 0.0, length))
+        out.append(("sound", "music_medieval_battle", 0.0, length))
     stats = {"rounds": sum(1 for h in hits if h[0] == "enemy"), "length": length, "player_left": p_left}
     return out, stats
