@@ -71,3 +71,22 @@ def test_quest_talk_plan_is_in_order():
     assert huds[3][4]["text"] == "No"
     starts = [h[2] for h in huds]
     assert starts == sorted(starts) and length > starts[-1]
+
+
+def test_version_number_is_big_small_fix_and_in_changelog():
+    import re
+    from questcut import __version__
+    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8") as f:
+        assert f"## {__version__} " in f.read()
+
+
+def test_saved_project_records_the_app_version(tmp_path):
+    import json
+    from questcut import __version__
+    p = Project.new_default()
+    path = os.path.join(tmp_path, "v.questcut")
+    p.save(path)
+    with open(path, encoding="utf-8") as f:
+        assert json.load(f)["app_version"] == __version__

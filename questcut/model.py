@@ -13,6 +13,8 @@ import uuid
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
+from . import __version__
+
 APP_NAME = "QuestCut"
 PROJECT_EXT = ".questcut"
 FORMAT_VERSION = 1
@@ -292,7 +294,7 @@ class Project:
     # ---- serialisation
     def to_dict(self) -> dict:
         d = {
-            "format": APP_NAME, "version": FORMAT_VERSION,
+            "format": APP_NAME, "version": FORMAT_VERSION, "app_version": __version__,
             "name": self.name, "fps": self.fps, "width": self.width, "height": self.height,
             "sample_rate": self.sample_rate,
             "media": {k: asdict(v) for k, v in self.media.items()},

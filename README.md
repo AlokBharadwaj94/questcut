@@ -4,6 +4,8 @@
 Made for a PhD movie filmed with a GoPro and a second camera, with colleagues playing the NPCs.
 Runs on **Windows, macOS and Linux**; projects move freely between them, and the export is a normal MP4.
 
+**Current version: 1.0.1** · [what changed](CHANGELOG.md)
+
 [![tests](https://github.com/AlokBharadwaj94/questcut/actions/workflows/tests.yml/badge.svg)](https://github.com/AlokBharadwaj94/questcut/actions/workflows/tests.yml)
 
 ![QuestCut during a RuneScape-style fight: overhead health bars, damage splats, XP drop, the GoPro view in a corner](docs/images/app.jpg)
@@ -186,7 +188,16 @@ faster, and the lab PC with NVENC is faster again. Use **Export → Quick test (
 
 ---
 
-## 8 · For developers
+## 8 · Version numbers
+
+QuestCut versions look like **1.0.1** = **BIG . SMALL . FIX**:
+**BIG** for big changes, **SMALL** when new features are added, **FIX** for bug fixes only.
+Your version is in the window title and under Help → About QuestCut. Every version is listed, with what
+changed, in [CHANGELOG.md](CHANGELOG.md) and under *Releases* on GitHub.
+
+---
+
+## 9 · For developers
 
 ```
 questcut/

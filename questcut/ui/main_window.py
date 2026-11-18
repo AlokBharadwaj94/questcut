@@ -23,6 +23,7 @@ from ..backend import AUDIO, HW, detect_hardware, probe_audio_devices
 from ..cards import CARD_TYPES, card_defaults
 from ..hud import BAR_TYPES, FULLSCREEN_TYPES, HUD_TYPES, PORTRAIT_TYPES, hud_defaults
 from ..media import (AUDIO_EXT, IMAGE_EXT, VIDEO_EXT, FrameSource, cache_dir, load_audio, make_proxy, probe)
+from .. import __version__
 from ..model import APP_NAME, PROJECT_EXT, Clip, Media, Project, Track, append_project, new_id, relink_media
 from .dialogs import ExportDialog, GpuInfoDialog, RecorderDialog, SpellDialog
 from .guide import Guide
@@ -354,13 +355,16 @@ class MainWindow(QMainWindow):
         self._act("Create practice project", self.create_practice_project, menu=h)
         self._act("What does the GPU speed up?", self.show_gpu_info, menu=h)
         self._act("About QuestCut", lambda: QMessageBox.about(
-            self, "About QuestCut", "<b>QuestCut</b><br>A small video editor for video-game style movies.<br>"
+            self, "About QuestCut", f"<b>QuestCut {__version__}</b><br>A small video editor for video-game style "
+            "movies.<br><br>Version numbers: big . small (new features) . fix (bug fixes).<br>"
+            "What changed: CHANGELOG.md in the QuestCut folder.<br><br>"
+            "<a href='https://github.com/AlokBharadwaj94/questcut'>github.com/AlokBharadwaj94/questcut</a><br><br>"
             "Made with Python, Qt (PySide6), PyAV/FFmpeg, NumPy and OpenCV."), menu=h)
 
     # ================================================================ title / dirty
     def _update_title(self):
         name = os.path.basename(self.project.path) if self.project.path else "Unsaved project"
-        self.setWindowTitle(f"{APP_NAME} — {name}{' *' if self.dirty else ''}")
+        self.setWindowTitle(f"{APP_NAME} {__version__} — {name}{' *' if self.dirty else ''}")
 
     # ================================================================ editing core
     def push_undo(self):
